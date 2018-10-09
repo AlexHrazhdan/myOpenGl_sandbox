@@ -6,8 +6,11 @@
 #include <QtGui\QMouseEvent>
 #include <QtGui\QKeyEvent>
 #include <gtc\matrix_transform.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <gtx\transform.hpp>
 
-//#include <gtx\transform.hpp>
+
+
 #include <meGlWindow.h>
 #include <Vertex.h>
 #include <ShapeGenerator.h>
@@ -20,8 +23,8 @@ extern const char* fragmentShaderCode;
 GLuint programID;
 GLuint numIds;
 Camera camera;
-GLuint cubeVertexArrayObjectID;
-GLuint arrowVertexArrayObjectID;
+//GLuint cubeVertexArrayObjectID;
+//GLuint arrowVertexArrayObjectID;
 
 meGlWindow::meGlWindow()
 {
@@ -111,15 +114,16 @@ void instalShaders()
 }
 
 
-void sendDataToOpenGL()
+void meGlWindow::sendDataToOpenGL()
 {
 
 
 
 	ShapeData shape = ShapeGenerator::makeCube();
-	GLuint* vertexBufferId;
-	glGenBuffers(2, vertexBufferId);
-	glBindBuffer(GL_ARRAY_BUFFER, vertexBufferId[0]);
+	GLuint vertexBufferId ;
+	glGenBuffers(1, &vertexBufferId);
+	glBindBuffer(GL_ARRAY_BUFFER, vertexBufferId);
+	// reserve  send data to openGl 
 	glBufferData(GL_ARRAY_BUFFER, shape.vertexBufferSize(), shape.vertices, GL_STATIC_DRAW);
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
@@ -133,15 +137,39 @@ void sendDataToOpenGL()
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, shape.idsBufferSize(), shape.indices, GL_STATIC_DRAW);
 	numIds = shape.numIndices;
 	shape.cleanup();
+
+
+
+	// instancing matrixes init
+	GLuint transformationMatrixBufferID;
+	glGenBuffers(1, &transformationMatrixBufferID);
+	glBindBuffer(GL_ARRAY_BUFFER, transformationMatrixBufferID);
+
+	glBufferData(GL_ARRAY_BUFFER, sizeof(mat4) * 3, 0, GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)(sizeof(float) * 0));
+	glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)(sizeof(float) * 4));
+	glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)(sizeof(float) * 8));
+	glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)(sizeof(float) * 12));
+	glEnableVertexAttribArray(2);
+	glEnableVertexAttribArray(3);
+	glEnableVertexAttribArray(4);
+	glEnableVertexAttribArray(5);
+	glVertexAttribDivisor(2, 1);
+	glVertexAttribDivisor(3, 1);
+	glVertexAttribDivisor(4, 1);
+	glVertexAttribDivisor(5, 1);
+
+	
+
 }
 
 void meGlWindow::setupVertexArrays()
 {
-	glGenVertexArrays(1, &cubeVertexArrayObjectID);
-	glGenVertexArrays(1, &arrowVertexArrayObjectID);
+	//glGenVertexArrays(1, &cubeVertexArrayObjectID);
+	//glGenVertexArrays(1, &arrowVertexArrayObjectID);
 
-	glBindVertexArray(cubeVertexArrayObjectID);
-	glBindVertexArray(arrowVertexArrayObjectID);
+	//glBindVertexArray(cubeVertexArrayObjectID);
+	//glBindVertexArray(arrowVertexArrayObjectID);
 }
 
 void meGlWindow::initializeGL()
@@ -155,24 +183,26 @@ void meGlWindow::initializeGL()
 }
 void meGlWindow::paintGL()
 {
+
+
+	mat4 projectionMatrix = glm::perspective(glm::radians(60.0f), (float)width() / height(), 0.1f, 100.0f);
+	mat4 combinedMat[] =
+	{
+		projectionMatrix*camera.getWorldToViewMatrix()*glm::translate(glm::mat4(1), glm::vec3(0.0f, 0.0f, -5.0f))*glm::rotate(glm::mat4(1), glm::radians(30.0f), vec3(0.0f, 1.0f, 0.0f)),
+		projectionMatrix*camera.getWorldToViewMatrix()*glm::translate(glm::mat4(1), glm::vec3(3.0f, 0.0f, -5.0f))*glm::rotate(glm::mat4(1), glm::radians(90.0f), vec3(0.0f, 1.0f, 0.0f)),
+		projectionMatrix*camera.getWorldToViewMatrix()*glm::translate(glm::mat4(1), glm::vec3(-3.0f, 0.0f, -6.0f))*glm::rotate(glm::mat4(1), glm::radians(10.0f), vec3(0.0f, 1.0f, 0.0f))
+	};
+
+
+	glBufferData(GL_ARRAY_BUFFER, sizeof(combinedMat), combinedMat, GL_DYNAMIC_DRAW);
+
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 	glClearColor(0.2f, 0.21f, 0.23f, 1.0f);
 	glViewport(0, 0, width(), height());
 
-	mat4 projectionMatrix  = glm::perspective(glm::radians(60.0f), (float)width() / height(), 0.1f, 100.0f);
-	mat4 translationMatrix = glm::translate(glm::mat4(1), glm::vec3(0.0f, 0.0f, -5.0f));
-	mat4 rotationMatrix    = glm::rotate(glm::mat4(1), glm::radians(30.0f), vec3(0.0f, 1.0f, 0.0f));
+	glDrawElementsInstanced(GL_TRIANGLES, numIds, GL_UNSIGNED_SHORT, 0, 3);
 	
-	mat4 combinedMat = projectionMatrix*camera.getWorldToViewMatrix()*translationMatrix*rotationMatrix;
-
 	
-	GLint transformationMatrixUniformLocatrion =
-		glGetUniformLocation(programID, "transformationMatrix");
-
-	glUniformMatrix4fv(transformationMatrixUniformLocatrion, 1, GL_FALSE, &combinedMat[0][0]);
-
-	glDrawElements(GL_TRIANGLES, numIds, GL_UNSIGNED_SHORT, 0);
-
 }
 
 void meGlWindow::mouseMoveEvent(QMouseEvent* e)

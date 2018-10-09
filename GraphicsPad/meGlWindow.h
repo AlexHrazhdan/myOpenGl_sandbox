@@ -9,6 +9,7 @@ protected:
 	void mouseMoveEvent(QMouseEvent*);
 	void keyPressEvent(QKeyEvent*);
 	void setupVertexArrays();
+	void sendDataToOpenGL();
 public:
 	meGlWindow();
 	~meGlWindow();
